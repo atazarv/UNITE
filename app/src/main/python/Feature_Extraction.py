@@ -67,7 +67,7 @@ def threshold_peakdetection(dataset, fs):
     npeaks = 0
     s = 0
     peakarray = []
-    
+
     localaverage = np.average(dataset)
     for datapoint in dataset:
 
@@ -82,7 +82,7 @@ def threshold_peakdetection(dataset, fs):
             peaklist.append(beatposition)
             window = []
             listpos += 1
-      
+
     ## Ignore if the previous peak was within 360 ms interval becasuse it is T-wave
     for val in peaklist:
         if npeaks > 0:
@@ -93,8 +93,8 @@ def threshold_peakdetection(dataset, fs):
             s = int((elapsed<=TH_elapsed) or (dataset[peaklist[npeaks]]<0.2*dataset[peaklist[npeaks-1]]))
             if not(s):
                 peakarray.append(val)
-        npeaks += 1    
-    
+        npeaks += 1
+
     ybeat = [dataset[x] for x in peakarray]
 
     return peakarray#, peaklist
@@ -121,7 +121,7 @@ def calc_RRI(peaklist, fs):
     cnt = 0
     while (cnt < (len(peaklist)-1)):
         RR_interval = (peaklist[cnt+1] - peaklist[cnt])
-        ms_dist = ((RR_interval / fs) * 1000.0) 
+        ms_dist = ((RR_interval / fs) * 1000.0)
         RR_list.append(ms_dist)
         cnt += 1
 
@@ -132,21 +132,17 @@ def calc_RRI(peaklist, fs):
         RR_diff.append(abs(RR_list[cnt] - RR_list[cnt+1]))
         RR_sqdiff.append(math.pow(RR_list[cnt] - RR_list[cnt+1], 2))
         cnt += 1
-        
+
     return RR_list, RR_diff, RR_sqdiff
 
 def getTime(timestamp, peaklist):
     readable = [0 for x in range(int(len(peaklist))) ]
-    timearray = []
-    j = 0 
+    j = 0
     for i in peaklist:
-        readable[j] = datetime.datetime.fromtimestamp(timestamp[i]/1000).strftime('%M')
+        readable[j] = datetime.datetime.fromtimestamp(timestamp[i]/1000)
         j+=1
-    
-    for i in range(len(readable)):
-        timearray.append(int(readable[i]))
-        
-    return timearray
+
+    return readable
 
 def calc_heartrate(RR_list):
     HR = []
@@ -194,107 +190,46 @@ def reject_outliers(data, deviation_threshold=0.67, fill_with='average'):
         result = data
     return result
 
-def calc_td_hrv(RR_list, RR_diff, RR_sqdiff, f_s):
-#     ibi=[0 for x in range(int(len(RR_list))+1)]
-    ibi=[0 for x in range(int(len(RR_list)))]
-    sndd=[0 for x in range(int(len(RR_list)))]
-    sdsd=[0 for x in range(int(len(RR_diff)))]
-    rmssd=[0 for x in range(int(len(RR_sqdiff)))]
-    NN20=[0 for x in range(int(len(RR_diff)))]
-    NN50=[0 for x in range(int(len(RR_diff)))]
+def calc_td_hrv(RR_list, RR_diff, RR_sqdiff):
+    sdnn = np.std(RR_list)
+
+    sdsd = np.std(RR_diff)
+    NN20 = [x for x in RR_diff if x > 20]
+    NN50 = [x for x in RR_diff if x > 50]
+
+    rmssd=np.sqrt(np.mean(RR_sqdiff))
+
+    pnn20 = (len(NN20))/len(RR_diff)
+    pnn50 = (len(NN50))/len(RR_diff)
+
+    return sdnn, sdsd, rmssd, pnn20, pnn50
 
 
-    window_length = 300
-    
-    dt = np.dtype('Float64')
-    ibi_array = np.array(ibi, dtype=dt)
-    sdnn_array = np.array(sndd, dtype=dt)
-    sdsd_array = np.array(sdsd, dtype=dt)
-    rmssd_array = np.array(rmssd, dtype=dt)
+def calc_fd_hrv(RR_list):
+    rr_x = []
+    pointer = 0
+    for x in RR_list:
+        pointer += x
+        rr_x.append(pointer)
+    RR_x_new = np.linspace(rr_x[0], rr_x[-1], int(rr_x[-1]))
 
-    for i in range(len(RR_list)):
-        if(len(RR_list[i:i+window_length])==window_length):
-            ibi_array[i]=np.mean(RR_list[i:i+window_length])
-            sdnn_array[i]=(np.std(RR_list[i:i+window_length]))
-        else:
-            ibi_array[i]=np.mean(RR_list[i:])
-            sdnn_array[i]=(np.std(RR_list[i:]))
-            
-    for i in range(len(RR_diff)):
-        if(len(RR_diff[i:i+window_length])==window_length):
-            sdsd_array[i]=np.std(RR_diff[i:i+window_length])
-            NN20[i] = [x for x in RR_diff[i:i+window_length] if x > 20]
-            NN50[i] = [x for x in RR_diff[i:i+window_length] if x > 50]
-        else:
-            sdsd_array[i]=np.std(RR_diff[i:])
-            NN20[i] = [x for x in RR_diff[i:] if x > 20]
-            NN50[i] = [x for x in RR_diff[i:] if x > 50]
-
-    for i in range(len(RR_sqdiff)):
-        if(len(RR_sqdiff[i:i+window_length])==window_length):
-            rmssd_array[i]=np.sqrt(np.mean(RR_sqdiff[i:i+window_length]))
-        else:
-            rmssd_array[i]=np.sqrt(np.mean(RR_sqdiff[i:]))
-
-        
-    pnn20=[0 for x in range(int(len(NN20)))]
-    pnn50=[0 for x in range(int(len(NN50)))]
-    
-    
-    for i in range(len(NN20)):
-        pnn20[i] = (len(NN20[i]))/window_length
-    
-    for i in range(len(NN50)):
-        pnn50[i]=(len(NN50[i]))/window_length
-    
-    
-    return sdnn_array, sdsd_array, rmssd_array, pnn20, pnn50
-
-
-def calc_fd_hrv(RR_list, fs):  
-    window = 300 # minimun range of frequency domain HRV is 5 minutes
-    lf = [0 for x in range(int(len(RR_list))+1)]
-    hf = [0 for x in range(int(len(RR_list))+1)]
-    lfhf = [0 for x in range(int(len(RR_list))+1)]
-    
-    for i in range(0, len(RR_list), window):
-        rr_x = []
-        pointer = 0
-        for x in RR_list[i:i+window]:
-            pointer += x
-            rr_x.append(pointer)
-        RR_x_new = np.linspace(rr_x[0], rr_x[-1], rr_x[-1])
-    
-    
 #     f = interp1d(RR_x, RR_y, kind='cubic') #Interpolate the signal with cubic spline interpolation
-        interpolated_func = UnivariateSpline(rr_x, RR_list[i:i+window], k=3)
+    interpolated_func = UnivariateSpline(rr_x, RR_list, k=3)
 
-        datalen = len(RR_x_new)
-        frq = np.fft.fftfreq(datalen, d=((1/1000.0)))
-        frq = frq[range(int(datalen/2))]
-        Y = np.fft.fft(interpolated_func(RR_x_new))/datalen
-        Y = Y[range(int(datalen/2))]
-        psd = np.power(Y, 2)
+    datalen = len(RR_x_new)
+    frq = np.fft.fftfreq(datalen, d=((1/1000.0)))
+    frq = frq[range(int(datalen/2))]
+    Y = np.fft.fft(interpolated_func(RR_x_new))/datalen
+    Y = Y[range(int(datalen/2))]
+    psd = np.power(Y, 2)
 
-        lf[i] = np.trapz(abs(psd[(frq >= 0.04) & (frq <= 0.15)])) #Slice frequency spectrum where x is between 0.04 and 0.15Hz (LF), and use NumPy's trapezoidal integration function to find the are
-        hf[i] = np.trapz(abs(psd[(frq >= 0.16) & (frq <= 0.5)])) #Do the same for 0.16-0.5Hz (HF)
-        lfhf[i] = lf[i]/hf[i]
-        
-    for i in range(0, len(lf)):
-        if (lf[i]==0):
-            lf[i] = lf[i-1]
-
-    for i in range(0, len(hf)):
-        if (hf[i]==0):
-            hf[i] = hf[i-1]
-
-    for i in range(0, len(lfhf)):
-        if (lfhf[i]==0):
-            lfhf[i] = lfhf[i-1]
+    lf = np.trapz(abs(psd[(frq >= 0.04) & (frq <= 0.15)])) #Slice frequency spectrum where x is between 0.04 and 0.15Hz (LF), and use NumPy's trapezoidal integration function to find the are
+    hf = np.trapz(abs(psd[(frq >= 0.16) & (frq <= 0.5)])) #Do the same for 0.16-0.5Hz (HF)
+    lfhf = lf/hf
 
     return lf, hf, lfhf
 
-def cal_nonli_hrv(RR_list, fs):
+def cal_nonli_hrv(RR_list):
 
     diff_RR = np.diff(RR_list)
 
@@ -304,43 +239,42 @@ def cal_nonli_hrv(RR_list, fs):
 
     return sd1, sd2, sd1sd2
 
-def truncate(n, decimals=2):
-    multiplier = 10**decimals
-    return int(n*multiplier)/multiplier
 
 
-def PPG_feature(Raw_PPG, Timestamp_PPG, fs):
+
+def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
     ppg_lowcut = 0.5 #fmin
     ppg_highcut = 1.5 #fmax
-    
-    ## Filtering ## 
+
+    ## Filtering ##
     ppg_filter = butter_bandpassfilter(Raw_PPG, ppg_lowcut, ppg_highcut, fs, order=2)
-    ppg_smooth = movingaverage(ppg_filter, periods=80)
+    ppg_smooth = movingaverage(ppg_filter, periods=smoothing_period)
     ## Peak detection ##
     ppg_peaklist_t = threshold_peakdetection(ppg_smooth, fs)
 
-    ## Correct peaklist##
+    ## Correct peaklist## ppg_correct_peaklist_t is the list of indexes for ppg peak points
     ppg_correct_peaklist_t = correct_peaklist(Raw_PPG, ppg_peaklist_t, fs)
-    ## RR intervals ##
+
+    ## RR intervals ## They are in: ms, ms and ms^2 respectively
     ppgT_RR_list, ppgT_RR_diff, ppgT_RR_sqdiff = calc_RRI(ppg_correct_peaklist_t, fs)
 
     ## GET TIME DATA ##
     ppg_time = getTime(Timestamp_PPG, ppg_correct_peaklist_t)
-    
+
     ## Heart Rate ##
     ppgT_HR = calc_heartrate(ppgT_RR_list)
     rej_ppgT_HR = reject_outliers(ppgT_HR,  deviation_threshold=3)
 #    ppg_bpm = calc_bpm(rej_ppgT_HR)
-    
-    ## HRV - TIME ##
-    ppg_sdnn, ppg_sdsd, ppg_rmssd, ppg_pnn20, ppg_pnn50 = calc_td_hrv(ppgT_RR_list, ppgT_RR_diff, ppgT_RR_sqdiff, fs)
-    ## HRV - FREQ ##
-    ppg_lf, ppg_hf, ppg_lfhf = calc_fd_hrv(ppgT_RR_list, fs)
-    ## HRV - NONLINEAR ##
-    ppg_sd1, ppg_sd2, ppg_sd1sd2 = cal_nonli_hrv(ppgT_RR_list, fs)
-    
 
-    PPG_TIME = ppg_time[0]
+    ## HRV - TIME ##
+    ppg_sdnn, ppg_sdsd, ppg_rmssd, ppg_pnn20, ppg_pnn50 = calc_td_hrv(ppgT_RR_list, ppgT_RR_diff, ppgT_RR_sqdiff)
+    ## HRV - FREQ ##
+    ppg_lf, ppg_hf, ppg_lfhf = calc_fd_hrv(ppgT_RR_list)
+    ## HRV - NONLINEAR ##
+    ppg_sd1, ppg_sd2, ppg_sd1sd2 = cal_nonli_hrv(ppgT_RR_list)
+
+
+    PPG_TIME = str(ppg_time[0])
     PPG_HR = np.average(rej_ppgT_HR)
 #    PPG_BPM = np.average(ppg_bpm)
     PPG_SDNN = np.average(ppg_sdnn)
@@ -348,31 +282,16 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs):
     PPG_RMSSD = np.average(ppg_rmssd)
     PPG_PNN20 = np.average(ppg_pnn20)
     PPG_PNN50 = np.average(ppg_pnn50)
-    PPG_LF = np.average(ppg_lf)
-    PPG_HF = np.average(ppg_hf)
+    PPG_LF = np.average(ppg_lf)/(10**6)         #scaling constant
+    PPG_HF = np.average(ppg_hf)/(10**5)         #scaling constant
     PPG_LFHF = np.average(ppg_lfhf)
-    PPG_SD1 = np.average(ppg_sd1)
-    PPG_SD2 = np.average(ppg_sd2)
+    PPG_SD1 = np.average(ppg_sd1)/(10**3)
+    PPG_SD2 = np.average(ppg_sd2)/(10**3)
     PPG_SD1SD2 = np.average(ppg_sd1sd2)
 
 
-    PPG_TIME= truncate(PPG_TIME)
-    PPG_HR= truncate(PPG_HR)
-    PPG_SDNN= truncate(PPG_SDNN)
-    PPG_SDSD= truncate(PPG_SDSD)
-    PPG_RMSSD= truncate(PPG_RMSSD)
-    PPG_PNN20= truncate(PPG_PNN20)
-    PPG_PNN50= truncate(PPG_PNN50)
-    PPG_LF= truncate(PPG_LF)
-    PPG_HF= truncate(PPG_HF)
-    PPG_LFHF= truncate(PPG_LFHF)
-    PPG_SD1= truncate(PPG_SD1)
-    PPG_SD2= truncate(PPG_SD2)
-    PPG_SD1SD2= truncate(PPG_SD1SD2)
-
-                  
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
-                  
+
 
 
 # In[6]:
