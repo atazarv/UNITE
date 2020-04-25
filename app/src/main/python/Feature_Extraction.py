@@ -10,6 +10,7 @@ import numpy as np
 import math
 from scipy.interpolate import UnivariateSpline
 from os.path import dirname, join
+import os
 
 #%%
 
@@ -292,13 +293,76 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
 
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
 
+def dens_val(index, density):
+    d = density.copy()
+    ind = index.copy()
+    for i in range(len(index)):
+        d = d[ind.pop(0)]
+    return d
+#%%
+
+def Sample_Locator(Sample, bndrs):
+    """
+    Sample: Comes from the Feature_Extraction Function
+    bndrs: Are two constant M*N and M*(N+1) np arrays which are directly read from the phone memory. Set as constants here for now.
+    """
+    m = len(Sample) #number of features
+
+    index = []
+    for i in range(m):
+        for j in range(len(bndrs[i])):
+            if Features[i]<bndrs[i,j] :
+                break
+        if Features[i]>=bndrs[i,j]:
+            j+=1
+        index.append(j)
+
+    return index #returns the index of Sample on the grid
+
 
 
 # In[6]:
 
 
-def Feature_Extraction():
-    url1  = "data_201909121857.csv"
+def main(DAY=0.5):
+    url1 = 'data_201909121857.csv'
+
     Raw_PPG = openShimmerFile(url1, 'ppg')
     Timestamp_PPG = openShimmerFile(url1, 'timestamp')
-    return PPG_feature(Raw_PPG, Timestamp_PPG, 20)
+
+    Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
+    Sample = [Features[2], Features[7], Features[9], Features[10]]
+
+    with open(os.environ["HOME"]+'Samples.csv', 'a', newline='') as file:
+        file_writer = csv.writer(file, delimiter=',')
+        file_writer.writerow(Sample)
+
+    t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
+
+    if DAY<0:
+        raise ValueError("DAY should be a non-negative float number")
+
+    elif DAY==1:
+        stored_data = np.genfromtxt(os.environ["HOME"]+'Samples.csv',delimiter=',')
+        Mean = stored_data.mean(axis=0)
+        STD = stored_data.std(axis=0)
+        bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
+        density = np.zeros(([bndrs.shape[1]+1]*(bndrs.shape[0])))
+
+        for row in stored_data:
+            index = Sample_Locator(Sample, bndrs)
+            density[index]+=1
+    #Save Density and bndrs
+
+    elif DAY>1:
+    #load density and bndrs
+        index= Sample_Locator(Features, bndrs)
+        d = dens_val(a, density)
+        d_cal = d/density.max()
+        d_cal= max(d_cal, 0.05)
+        eps = np.random.random()
+
+        if eps<d_cal:
+            t = True
+
+    return t

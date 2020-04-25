@@ -85,17 +85,13 @@ public class MainActivity extends AppCompatActivity {
 
         Python py = Python.getInstance();
         PyObject pyf = py.getModule("Feature_Extraction");
-        PyObject object = pyf.callAttr("Feature_Extraction");
+        PyObject object = pyf.callAttr("main");
 
         textView = findViewById(R.id.sina);
 
         System.out.println("****************************");
         System.out.println(object);
-        textView.setText("(PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD," +
-                " PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, " +
-                "PPG_SD2, PPG_SD1SD2) = \n" + object.toString());
-
-
+        textView.setText(object.toString());
 
     }
 }
