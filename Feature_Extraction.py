@@ -11,7 +11,7 @@ import math
 from scipy.interpolate import UnivariateSpline
 from os.path import dirname, join
 import os
-
+#from android.os import Environment
 #%%
 
 def openShimmerFile(url, column_name):
@@ -293,12 +293,14 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
 
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
 
+'''
 def dens_val(index, density):
     d = density.copy()
     ind = index.copy()
     for i in range(len(index)):
         d = d[ind.pop(0)]
     return d
+'''
 #%%
 
 def Sample_Locator(Sample, bndrs):
@@ -311,9 +313,9 @@ def Sample_Locator(Sample, bndrs):
     index = []
     for i in range(m):
         for j in range(len(bndrs[i])):
-            if Features[i]<bndrs[i,j] :
+            if Sample[i]<bndrs[i,j] :
                 break
-        if Features[i]>=bndrs[i,j]:
+        if Sample[i]>=bndrs[i,j]:
             j+=1
         index.append(j)
 
@@ -324,8 +326,10 @@ def Sample_Locator(Sample, bndrs):
 # In[6]:
 
 
-def main(DAY=0.5):
-    url1 = 'data_201909121857.csv'
+def main(dir1, user_id, DAY=0.5): 
+	#dir1: String, directory in which distribution files are stored
+	#user_id: String
+    url1 = dir1+'newdata_'+ user_id+'.csv' 	#address to the new coming 2m window signals including ppg
 
     Raw_PPG = openShimmerFile(url1, 'ppg')
     Timestamp_PPG = openShimmerFile(url1, 'timestamp')
@@ -333,7 +337,7 @@ def main(DAY=0.5):
     Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
     Sample = [Features[2], Features[7], Features[9], Features[10]]
 
-    with open(os.environ["HOME"]+'Samples.csv', 'a', newline='') as file:
+    with open(dir1+'samples_'+user_id+'.csv', 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
 
@@ -343,7 +347,7 @@ def main(DAY=0.5):
         raise ValueError("DAY should be a non-negative float number")
 
     elif DAY==1:
-        stored_data = np.genfromtxt(os.environ["HOME"]+'Samples.csv',delimiter=',')
+        stored_data = np.genfromtxt(dir1+'samples_'+user_id+'.csv',delimiter=',')
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
         bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
@@ -351,18 +355,29 @@ def main(DAY=0.5):
 
         for row in stored_data:
             index = Sample_Locator(Sample, bndrs)
-            density[index]+=1
+            density[tuple(index)]+=1
+        np.save(dir1+'density_'+user_id, density)
+        np.savetxt(dir1+'bndrs_'+user_id+'.csv', bndrs, delimiter=',')
     #Save Density and bndrs
 
     elif DAY>1:
-    #load density and bndrs
-        index= Sample_Locator(Features, bndrs)
-        d = dens_val(a, density)
-        d_cal = d/density.max()
-        d_cal= max(d_cal, 0.05)
-        eps = np.random.random()
+    	density = np.load(dir1+'density_'+user_id+'.npy')
+    	bndrs = np.genfromtxt(dir1+'bndrs_'+user_id+'.csv', delimiter=',')
+    	index= Sample_Locator(Sample, bndrs)
+    	d_cal = density[tuple(index)]/density.max()
+    	d_cal= max(d_cal, 0.05)
 
-        if eps<d_cal:
-            t = True
+    	eps = np.random.random()
+
+    	if eps<d_cal:
+    		t = True
+    #d = str(Environment.getExternalStorageDirectory())
 
     return t
+    #, d, os.listdir(d)
+
+
+
+if __name__ == "__main__":
+	dir1 = os.path.dirname(os.path.realpath(__file__))+'\\'
+	print(main(dir1= dir1, user_id='12345', DAY=1))
