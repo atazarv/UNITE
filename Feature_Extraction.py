@@ -1,6 +1,3 @@
-
-# coding: utf-8
-
 import csv
 import datetime
 #import matplotlib.pyplot as plt
@@ -21,7 +18,6 @@ def openShimmerFile(url, column_name):
     with open(join(dirname(__file__), url)) as f:
         reader = csv.reader(f, delimiter = '\t')
         # Store data in lists
-        sep = reader.__next__()
         data_header = reader.__next__()
 
         index = -1
@@ -324,13 +320,17 @@ def Sample_Locator(Sample, bndrs):
 
 
 # In[6]:
+def file_len(fname):
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
 
-
-def main(dir1, user_id, DAY=0.5): 
+def main(datafile, dir1, user_id, realtime=True): 
 	#dir1: String, directory in which distribution files are stored
 	#user_id: String
-    url1 = dir1+'newdata_'+ user_id+'.csv' 	#address to the new coming 2m window signals including ppg
-
+    url1 = datafile 	#address to the new coming 2m window signals including ppg
+    dir1 = dir1 + '/'
     Raw_PPG = openShimmerFile(url1, 'ppg')
     Timestamp_PPG = openShimmerFile(url1, 'timestamp')
 
@@ -340,13 +340,14 @@ def main(dir1, user_id, DAY=0.5):
     with open(dir1+'samples_'+user_id+'.csv', 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
+    sample_count = file_len(dir1+'samples_'+user_id+'.csv')
 
     t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
 
-    if DAY<0:
+    if sample_count<0:
         raise ValueError("DAY should be a non-negative float number")
 
-    elif DAY==1:
+    elif sample_count==100:
         stored_data = np.genfromtxt(dir1+'samples_'+user_id+'.csv',delimiter=',')
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
@@ -360,7 +361,7 @@ def main(dir1, user_id, DAY=0.5):
         np.savetxt(dir1+'bndrs_'+user_id+'.csv', bndrs, delimiter=',')
     #Save Density and bndrs
 
-    elif DAY>1:
+    elif sample_count>100 and realtime:
     	density = np.load(dir1+'density_'+user_id+'.npy')
     	bndrs = np.genfromtxt(dir1+'bndrs_'+user_id+'.csv', delimiter=',')
     	index= Sample_Locator(Sample, bndrs)
@@ -377,7 +378,6 @@ def main(dir1, user_id, DAY=0.5):
     #, d, os.listdir(d)
 
 
-
 if __name__ == "__main__":
-	dir1 = os.path.dirname(os.path.realpath(__file__))+'\\'
-	print(main(dir1= dir1, user_id='12345', DAY=1))
+    dir1 = os.path.dirname(os.path.realpath(__file__))+'\\'
+    print(main(dir1= dir1, user_id='12345', DAY=1))
