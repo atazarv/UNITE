@@ -19,14 +19,17 @@ def openShimmerFile(url, column_name):
         reader = csv.reader(f, delimiter = '\t')
         # Store data in lists
         data_header = reader.__next__()
-
+        if data_header == ['sep=\t']:
+            data_header = reader.__next__()
+        
+        
         index = -1
         for i in range(len(data_header)):
             if (data_header[i] == column_name):
                 index = i
 
         if (index < 0):
-            raise ColumnNotFound
+            raise ValueError('ColumnNotFound')
         
         for row in reader:
             if (index <= len(row)):
@@ -318,60 +321,63 @@ def Sample_Locator(Sample, bndrs):
     return index #returns the index of Sample on the grid
 
 
-
-# In[6]:
 def file_len(fname):
     with open(fname) as f:
         for i, l in enumerate(f):
             pass
     return i + 1
 
+
+
+# In[6]:
+
 def main(datafile, dir1, user_id, realtime=True): 
-	#dir1: String, directory in which distribution files are stored
-	#user_id: String
-    url1 = datafile 	#address to the new coming 2m window signals including ppg
-    dir1 = dir1 + '/'
+	#dir1:            directory in which distribution files are or will be stored
+    #datafile:        Address to the new coming 2m window signals including ppg
+	#user_id:         String - username
+    url1 = datafile+'newdata_'+user_id+'.csv'   #address to the new coming 2m window signals including ppg
+    dir1 = dir1
     Raw_PPG = openShimmerFile(url1, 'ppg')
     Timestamp_PPG = openShimmerFile(url1, 'timestamp')
-
     Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
-    Sample = [Features[2], Features[7], Features[9], Features[10]]
-
+    Sample = [Timestamp_PPG[0], Features[2], Features[7], Features[9], Features[10]]
+    
     with open(dir1+'samples_'+user_id+'.csv', 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
+    
     sample_count = file_len(dir1+'samples_'+user_id+'.csv')
-
+    
     t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
 
     if sample_count<0:
-        raise ValueError("DAY should be a non-negative float number")
+        raise ValueError("sample_count should be a non-negative integer")
 
     elif sample_count==100:
-        stored_data = np.genfromtxt(dir1+'samples_'+user_id+'.csv',delimiter=',')
+        stored_data = np.genfromtxt(dir1+'samples_'+user_id+'.csv',delimiter=',')[:,1:]
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
         bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
         density = np.zeros(([bndrs.shape[1]+1]*(bndrs.shape[0])))
 
         for row in stored_data:
-            index = Sample_Locator(Sample, bndrs)
+            index = Sample_Locator(Sample[1:], bndrs)
             density[tuple(index)]+=1
         np.save(dir1+'density_'+user_id, density)
         np.savetxt(dir1+'bndrs_'+user_id+'.csv', bndrs, delimiter=',')
     #Save Density and bndrs
 
     elif sample_count>100 and realtime:
-    	density = np.load(dir1+'density_'+user_id+'.npy')
-    	bndrs = np.genfromtxt(dir1+'bndrs_'+user_id+'.csv', delimiter=',')
-    	index= Sample_Locator(Sample, bndrs)
-    	d_cal = density[tuple(index)]/density.max()
-    	d_cal= max(d_cal, 0.05)
-
-    	eps = np.random.random()
-
-    	if eps<d_cal:
-    		t = True
+        density = np.load(dir1+'density_'+user_id+'.npy')
+        bndrs = np.genfromtxt(dir1+'bndrs_'+user_id+'.csv', delimiter=',')
+        index= Sample_Locator(Sample[1:], bndrs)
+        d_cal = density[tuple(index)]/density.max()
+        d_cal= max(d_cal, 0.05)
+        
+        eps = np.random.random()
+        
+        if eps<d_cal:
+            t = True
     #d = str(Environment.getExternalStorageDirectory())
 
     return t
@@ -380,4 +386,4 @@ def main(datafile, dir1, user_id, realtime=True):
 
 if __name__ == "__main__":
     dir1 = os.path.dirname(os.path.realpath(__file__))+'\\'
-    print(main(dir1= dir1, user_id='12345', DAY=1))
+    print(main(datafile=dir1, dir1= dir1, user_id='12345'))
