@@ -16,6 +16,7 @@ def openShimmerFile(url, column_name):
 
     # Read File
     with open(join(dirname(__file__), url)) as f:
+    #with open(url) as f:
         reader = csv.reader(f, delimiter = '\t')
         # Store data in lists
         data_header = reader.__next__()
@@ -245,18 +246,23 @@ def cal_nonli_hrv(RR_list):
 def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
     ppg_lowcut = 0.5 #fmin
     ppg_highcut = 1.5 #fmax
-
+    
+    #avoid windowing effect:
+    k = 300
     ## Filtering ##
-    ppg_filter = butter_bandpassfilter(Raw_PPG, ppg_lowcut, ppg_highcut, fs, order=2)
+    ppg_filter = butter_bandpassfilter(Raw_PPG, ppg_lowcut, ppg_highcut, fs, order=2)[300:]
     ppg_smooth = movingaverage(ppg_filter, periods=smoothing_period)
     ## Peak detection ##
     ppg_peaklist_t = threshold_peakdetection(ppg_smooth, fs)
 
     ## Correct peaklist## ppg_correct_peaklist_t is the list of indexes for ppg peak points
-    ppg_correct_peaklist_t = correct_peaklist(Raw_PPG, ppg_peaklist_t, fs)
+    ppg_correct_peaklist_t = correct_peaklist(Raw_PPG[k:], ppg_peaklist_t, fs)
 
     ## RR intervals ## They are in: ms, ms and ms^2 respectively
     ppgT_RR_list, ppgT_RR_diff, ppgT_RR_sqdiff = calc_RRI(ppg_correct_peaklist_t, fs)
+    
+    if (len(ppgT_RR_list)/(len(Raw_PPG[k:])/20/60))<40:
+        raise ValueError('Signal Corrupted')
 
     ## GET TIME DATA ##
     ppg_time = getTime(Timestamp_PPG, ppg_correct_peaklist_t)
@@ -292,14 +298,6 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
 
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
 
-'''
-def dens_val(index, density):
-    d = density.copy()
-    ind = index.copy()
-    for i in range(len(index)):
-        d = d[ind.pop(0)]
-    return d
-'''
 #%%
 
 def Sample_Locator(Sample, bndrs):
@@ -335,8 +333,8 @@ def main(datafile, dir1, user_id, realtime=True):
 	#dir1:            directory in which distribution files are or will be stored
     #datafile:        Address to the new coming 2m window signals including ppg
 	#user_id:         String - username
-    url1 = datafile+'newdata_'+user_id+'.csv'   #address to the new coming 2m window signals including ppg
-    dir1 = dir1
+    url1 = datafile+'data_'+user_id+'.csv'   #address to the new coming 2m window signals including ppg
+    dir1 = dir1[:-9]+'processed\\'
     Raw_PPG = openShimmerFile(url1, 'ppg')
     Timestamp_PPG = openShimmerFile(url1, 'timestamp')
     Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
@@ -385,5 +383,14 @@ def main(datafile, dir1, user_id, realtime=True):
 
 
 if __name__ == "__main__":
-    dir1 = os.path.dirname(os.path.realpath(__file__))+'\\'
-    print(main(datafile=dir1, dir1= dir1, user_id='12345'))
+    dir1 = os.path.dirname(os.path.realpath(__file__))+'\\rct_sina\\'
+    files = os.listdir(dir1)
+    file_names = []
+    for f in files:
+        file_names.append(f[5:-4])
+    for f in file_names:
+        try:
+            print(main(datafile=dir1, dir1= dir1, user_id=f))
+        except ValueError:
+            pass
+            
