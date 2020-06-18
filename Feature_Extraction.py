@@ -8,6 +8,7 @@ import math
 from scipy.interpolate import UnivariateSpline
 from os.path import dirname, join
 import os
+from pathlib import Path
 #from android.os import Environment
 #%%
 
@@ -15,8 +16,8 @@ def openShimmerFile(url, column_name):
     req_data = []
 
     # Read File
-    with open(join(dirname(__file__), url)) as f:
-    #with open(url) as f:
+    #with open(join(dirname(__file__), url)) as f:
+    with open(url) as f:
         reader = csv.reader(f, delimiter = '\t')
         # Store data in lists
         data_header = reader.__next__()
@@ -248,20 +249,21 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
     ppg_highcut = 1.5 #fmax
     
     #avoid windowing effect:
-    k = 300
+    k = 250
     ## Filtering ##
-    ppg_filter = butter_bandpassfilter(Raw_PPG, ppg_lowcut, ppg_highcut, fs, order=2)[300:]
+    Raw_PPG_zm= np.array(Raw_PPG)-np.mean(Raw_PPG)
+    ppg_filter = butter_bandpassfilter(Raw_PPG_zm, ppg_lowcut, ppg_highcut, fs, order=6)[k:]
     ppg_smooth = movingaverage(ppg_filter, periods=smoothing_period)
     ## Peak detection ##
     ppg_peaklist_t = threshold_peakdetection(ppg_smooth, fs)
 
     ## Correct peaklist## ppg_correct_peaklist_t is the list of indexes for ppg peak points
-    ppg_correct_peaklist_t = correct_peaklist(Raw_PPG[k:], ppg_peaklist_t, fs)
+    ppg_correct_peaklist_t = correct_peaklist(Raw_PPG_zm, ppg_peaklist_t, fs)
 
     ## RR intervals ## They are in: ms, ms and ms^2 respectively
     ppgT_RR_list, ppgT_RR_diff, ppgT_RR_sqdiff = calc_RRI(ppg_correct_peaklist_t, fs)
     
-    if (len(ppgT_RR_list)/(len(Raw_PPG[k:])/20/60))<40:
+    if (len(ppgT_RR_list)/(len(ppg_filter)/20/60))<40:
         raise ValueError('Signal Corrupted')
 
     ## GET TIME DATA ##
@@ -298,7 +300,6 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
 
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
 
-#%%
 
 def Sample_Locator(Sample, bndrs):
     """
@@ -333,26 +334,24 @@ def main(datafile, dir1, user_id, realtime=True):
 	#dir1:            directory in which distribution files are or will be stored
     #datafile:        Address to the new coming 2m window signals including ppg
 	#user_id:         String - username
-    url1 = datafile+'data_'+user_id+'.csv'   #address to the new coming 2m window signals including ppg
-    dir1 = dir1[:-9]+'processed\\'
-    Raw_PPG = openShimmerFile(url1, 'ppg')
-    Timestamp_PPG = openShimmerFile(url1, 'timestamp')
+    Raw_PPG = openShimmerFile(datafile, 'ppg')
+    Timestamp_PPG = openShimmerFile(datafile, 'timestamp')
     Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
     Sample = [Timestamp_PPG[0], Features[2], Features[7], Features[9], Features[10]]
     
-    with open(dir1+'samples_'+user_id+'.csv', 'a', newline='') as file:
+    with open(dir1 / ('samples_'+user_id+'.csv'), 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
     
-    sample_count = file_len(dir1+'samples_'+user_id+'.csv')
+    sample_count = file_len(dir1 / ('samples_'+user_id+'.csv'))
     
     t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
 
     if sample_count<0:
         raise ValueError("sample_count should be a non-negative integer")
 
-    elif sample_count==100:
-        stored_data = np.genfromtxt(dir1+'samples_'+user_id+'.csv',delimiter=',')[:,1:]
+    elif not(sample_count%100):
+        stored_data = np.genfromtxt(dir1 / ('samples_'+user_id+'.csv'),delimiter=',')[:,1:]
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
         bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
@@ -361,19 +360,18 @@ def main(datafile, dir1, user_id, realtime=True):
         for row in stored_data:
             index = Sample_Locator(Sample[1:], bndrs)
             density[tuple(index)]+=1
-        np.save(dir1+'density_'+user_id, density)
-        np.savetxt(dir1+'bndrs_'+user_id+'.csv', bndrs, delimiter=',')
+        np.save(dir1 / ('density_'+user_id), density)
+        np.savetxt(dir1 / ('bndrs_'+user_id+'.csv'), bndrs, delimiter=',')
     #Save Density and bndrs
 
     elif sample_count>100 and realtime:
-        density = np.load(dir1+'density_'+user_id+'.npy')
-        bndrs = np.genfromtxt(dir1+'bndrs_'+user_id+'.csv', delimiter=',')
+        density = np.load(dir1 / ('density_'+user_id+'.npy'))
+        bndrs = np.genfromtxt(dir1 / ('bndrs_'+user_id+'.csv'), delimiter=',')
         index= Sample_Locator(Sample[1:], bndrs)
         d_cal = density[tuple(index)]/density.max()
         d_cal= max(d_cal, 0.05)
         
         eps = np.random.random()
-        
         if eps<d_cal:
             t = True
     #d = str(Environment.getExternalStorageDirectory())
@@ -381,16 +379,31 @@ def main(datafile, dir1, user_id, realtime=True):
     return t
     #, d, os.listdir(d)
 
-
+#%%
+import matplotlib.pyplot as plt
 if __name__ == "__main__":
-    dir1 = os.path.dirname(os.path.realpath(__file__))+'\\rct_sina\\'
-    files = os.listdir(dir1)
-    file_names = []
+    #dir1 = os.path.dirname(os.path.realpath(__file__))+'\\new_sina\\'
+    filepath = Path('C:/Users/Ali/AndroidStudioProjects/MyApplication2/new_sina')
+    dir1 = filepath.parents[0] / 'processed'
+    dir1.mkdir(exist_ok = True)
+    files = os.listdir(filepath)
+    q=0; p=0; r = 0
     for f in files:
-        file_names.append(f[5:-4])
-    for f in file_names:
+        user_id = f[5:-24]
+        q+=1
         try:
-            print(main(datafile=dir1, dir1= dir1, user_id=f))
+            trig = main(datafile=filepath / f, dir1= dir1, user_id=user_id)
+            if trig:
+                r+=1
+            print(q-1," - System output for file data_"+f+".csv:   ", trig)
+            #plt.plot(openShimmerFile(dir1+'data_'+f+'.csv', 'ppg'), color='black'); plt.show()
+            #plt.plot(main(datafile=dir1, dir1= dir1, user_id=f), color='b')
+            #plt.show()
         except ValueError:
+            p+=1
+            print(q-1, " - System output for file data_"+f+".csv:    Signal corrupted: ")
+            #plt.plot(openShimmerFile(dir1+'data_'+f+'.csv', 'ppg'), color='r')
+            #plt.show()
             pass
-            
+    print("\n \n", q-p, "out of", q, "samples were analyzed. The rest were corrupted")
+    print("number of Triggers:", r)
