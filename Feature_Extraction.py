@@ -290,12 +290,15 @@ def PPG_feature(Raw_PPG, Timestamp_PPG, fs, smoothing_period=80):
     PPG_RMSSD = np.average(ppg_rmssd)
     PPG_PNN20 = np.average(ppg_pnn20)
     PPG_PNN50 = np.average(ppg_pnn50)
-    PPG_LF = np.average(ppg_lf)/(10**6)         #scaling constant
+    PPG_LF = np.average(ppg_lf)/(10**5)         #scaling constant
     PPG_HF = np.average(ppg_hf)/(10**5)         #scaling constant
     PPG_LFHF = np.average(ppg_lfhf)
     PPG_SD1 = np.average(ppg_sd1)/(10**3)
     PPG_SD2 = np.average(ppg_sd2)/(10**3)
     PPG_SD1SD2 = np.average(ppg_sd1sd2)
+    
+    if PPG_LF>100 or PPG_HF>10:
+        raise ValueError('Signal Corrupted')
 
 
     return PPG_TIME, PPG_HR, PPG_SDNN, PPG_SDSD, PPG_RMSSD, PPG_PNN20, PPG_PNN50, PPG_LF, PPG_HF, PPG_LFHF, PPG_SD1, PPG_SD2, PPG_SD1SD2
@@ -337,13 +340,15 @@ def main(datafile, dir1, user_id, realtime=True):
     Raw_PPG = openShimmerFile(datafile, 'ppg')
     Timestamp_PPG = openShimmerFile(datafile, 'timestamp')
     Features = PPG_feature(Raw_PPG, Timestamp_PPG, fs=20, smoothing_period=10)
-    Sample = [Timestamp_PPG[0], Features[2], Features[7], Features[9], Features[10]]
+    #Sample = [Timestamp_PPG[0], Features[2], Features[7], Features[9], Features[10]]
+    Sample = [Timestamp_PPG[0]]+list(Features[1:])
+    samples = [Sample[2], Sample[7], Sample[9], Sample[10]]
     
-    with open(dir1 / ('samples_'+user_id+'.csv'), 'a', newline='') as file:
+    with open(dir1 / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
     
-    sample_count = file_len(dir1 / ('samples_'+user_id+'.csv'))
+    sample_count = file_len(dir1 / ('Sample_'+user_id+'.csv'))
     
     t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
 
@@ -351,23 +356,27 @@ def main(datafile, dir1, user_id, realtime=True):
         raise ValueError("sample_count should be a non-negative integer")
 
     elif not(sample_count%100):
-        stored_data = np.genfromtxt(dir1 / ('samples_'+user_id+'.csv'),delimiter=',')[:,1:]
+        S = np.genfromtxt(dir1 / ('Sample_'+user_id+'.csv'),delimiter=',')
+        ind = [2,7,9,10]
+        stored_data = np.take(S, ind, axis = 1)
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
         bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
         density = np.zeros(([bndrs.shape[1]+1]*(bndrs.shape[0])))
-
+        
         for row in stored_data:
-            index = Sample_Locator(Sample[1:], bndrs)
+            index = Sample_Locator(row, bndrs)
             density[tuple(index)]+=1
         np.save(dir1 / ('density_'+user_id), density)
         np.savetxt(dir1 / ('bndrs_'+user_id+'.csv'), bndrs, delimiter=',')
+        
+        #print(density)
     #Save Density and bndrs
 
     elif sample_count>100 and realtime:
         density = np.load(dir1 / ('density_'+user_id+'.npy'))
         bndrs = np.genfromtxt(dir1 / ('bndrs_'+user_id+'.csv'), delimiter=',')
-        index= Sample_Locator(Sample[1:], bndrs)
+        index= Sample_Locator(samples, bndrs)
         d_cal = density[tuple(index)]/density.max()
         d_cal= max(d_cal, 0.05)
         
