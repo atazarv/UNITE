@@ -41,11 +41,17 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     #realtime:        whether the signal is real time or it's delayed signal, which was stored on the watch
     #sleep:           Whether the user is asleep or not
     
+    #do not notify between midnight and 7am:
+    rest_time = datetime.strptime(str(datapath)[-23:-4], '%Y-%m-%d-%H-%M-%S').hour < 7
+    #load data
     data = pd.read_csv(datapath, header=0, delimiter='\t', usecols = ['ppg', 'timestamp'])
-    if data.shape[0]<1800:
+    #exclude too short or too long:
+    if data.shape[0]<5800:
         raise ValueError("Sample is too short")
-    if data.shape[0]>2800:
+    if data.shape[0]>6200:
+        #print(data.shape)
         raise ValueError("Sample is too long")
+    #feature extraction:
     ppg_features_dict = PPG_features(data)
     ppg_features = list(ppg_features_dict.values())
     if (ppg_features.count(np.nan) or (ppg_features.count(0)>2) or ((np.sum(ppg_features)/(10e10))>1)):
@@ -89,7 +95,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
         np.savetxt(filespath / ('bndrs_'+user_id+'.csv'), bndrs, delimiter=',')
 
 
-    elif sample_count>100 and realtime and not(sleep):
+    elif sample_count>100 and realtime and not(sleep) and not(rest_time):
         density = np.load(filespath / ('density_'+user_id+'.npy'))
         bndrs = np.genfromtxt(filespath / ('bndrs_'+user_id+'.csv'), delimiter=',')
         index= Sample_Locator(ppg_features, bndrs)
@@ -105,7 +111,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
 #%%
 if __name__ == "__main__":
     
-    filepath = Path(r'D:\UCI\Unite\Unite_RCT\Source Data\Raw Data')
+    filepath = Path(r'D:\UCI\Unite\Unite_RCT\Source Data\raw_data_1')
     dir1 = filepath.parents[0] / 'processed'
     dir1.mkdir(exist_ok = True)
     files = os.listdir(filepath)
@@ -133,6 +139,7 @@ if __name__ == "__main__":
             trig = main(datapath=filepath / f, filespath= dir1, user_id=user_id)
             if trig:
                 r+=1
+                print(f, trig)
             
 
         except ValueError:
