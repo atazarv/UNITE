@@ -49,7 +49,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     if data.shape[0]<5800:
         raise ValueError("Sample is too short")
     if data.shape[0]>6200:
-        #print(data.shape)
+#        print(data.shape)
         raise ValueError("Sample is too long")
     #feature extraction:
     ppg_features_dict = PPG_features(data)
@@ -62,13 +62,15 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     if not((filespath / ("Sample_"+user_id+".csv")).exists()):
         f_list = list(ppg_features_dict.keys())
         f_list.insert(0,'timestamp')
+        f_list.append('triggered')
+        f_list.append('filename')
         with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
             file_writer = csv.writer(file, delimiter=',')
             file_writer.writerow(f_list)
             
-    with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
-        file_writer = csv.writer(file, delimiter=',')
-        file_writer.writerow(Sample)
+#    with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
+#        file_writer = csv.writer(file, delimiter=',')
+#        file_writer.writerow(Sample)
     
     with open(filespath / ('Sample_'+user_id+'.csv')) as file:
         for sample_count, _ in enumerate(file):
@@ -76,13 +78,12 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     
     t = False    #TRIGGER SIGNAL, OUTPUT, set to False as default
 
-    if sample_count<1:
+    if sample_count<0:
         raise ValueError("sample_count should be a non-negative integer")
 
-    elif not(sample_count%100):
-        S = np.genfromtxt(filespath / ('Sample_'+user_id+'.csv'),delimiter=',')[1:]
+    elif not(sample_count%100) and sample_count:
+        stored_data = np.genfromtxt(filespath / ('Sample_'+user_id+'.csv'),delimiter=',')[1:,1:-2]
 
-        stored_data = S[:,1:]
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
         bndrs = np.array((Mean-STD/2, Mean+STD/2)).T
@@ -100,11 +101,17 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
         bndrs = np.genfromtxt(filespath / ('bndrs_'+user_id+'.csv'), delimiter=',')
         index= Sample_Locator(ppg_features, bndrs)
         d_cal = density[tuple(index)]/density.max()
-        d_cal= max(d_cal, 0.05)
+        d_cal= max(d_cal, 0.10)
         
         eps = np.random.random()
         if eps<d_cal:
             t = True
+    
+    Sample.append(int(t))
+    Sample.append(str(datapath)[-40:])
+    with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
+        file_writer = csv.writer(file, delimiter=',')
+        file_writer.writerow(Sample)
 
     return t
 
@@ -148,6 +155,6 @@ if __name__ == "__main__":
         except:
             s+=1
 
-    print("\n \n", q-p, "out of", q, "samples were analyzed.", p, "were corrupted or invalid length")
+    print("\n \n", q-p-s, "out of", q, "samples were analyzed.", p+s, "were corrupted or invalid length")
     print("number of Triggers:", r)
     print("run time:  ", datetime.now()-start)
