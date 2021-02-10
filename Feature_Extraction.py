@@ -103,7 +103,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
         np.savetxt(filespath / ('bndrs_'+user_id+'.csv'), bndrs, delimiter=',')
 
 
-    elif sample_count>100 and realtime and not(sleep) and not(rest_time):
+    elif sample_count>100 and realtime and not(rest_time): #and not(sleep)
         density = np.load(filespath / ('density_'+user_id+'.npy'))
         bndrs = np.genfromtxt(filespath / ('bndrs_'+user_id+'.csv'), delimiter=',')
         index= Sample_Locator(ppg_features, bndrs)
