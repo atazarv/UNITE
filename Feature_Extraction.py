@@ -71,7 +71,14 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
 #    with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
 #        file_writer = csv.writer(file, delimiter=',')
 #        file_writer.writerow(Sample)
-    
+
+    SS = pd.read_csv(filespath / ('Sample_'+user_id+'.csv'))
+    if SS.shape[1]==16:
+        SS['realtime'] = [-1]*SS.shape[0]
+        SS['sleep'] = [-1]*SS.shape[0]
+        SS.to_csv(filespath / ('Sample_'+user_id+'.csv'), sep = ',', index = False)
+        
+
     with open(filespath / ('Sample_'+user_id+'.csv')) as file:
         for sample_count, _ in enumerate(file):
             pass
@@ -82,7 +89,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
         raise ValueError("sample_count should be a non-negative integer")
 
     elif not(sample_count%100) and sample_count:
-        stored_data = np.genfromtxt(filespath / ('Sample_'+user_id+'.csv'),delimiter=',')[1:,1:-2]
+        stored_data = np.genfromtxt(filespath / ('Sample_'+user_id+'.csv'),delimiter=',')[1:,1:-4]
 
         Mean = stored_data.mean(axis=0)
         STD = stored_data.std(axis=0)
@@ -109,6 +116,9 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     
     Sample.append(int(t))
     Sample.append(str(datapath)[-40:])
+    Sample.append(int(realtime))
+    Sample.append(int(sleep))
+    
     with open(filespath / ('Sample_'+user_id+'.csv'), 'a', newline='') as file:
         file_writer = csv.writer(file, delimiter=',')
         file_writer.writerow(Sample)
@@ -118,25 +128,25 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
 #%%
 if __name__ == "__main__":
     
-    filepath = Path(r'D:\UCI\Unite\Unite_RCT\Source Data\raw_data_1')
+    filepath = Path(r'D:\test111\raw_data')
     dir1 = filepath.parents[0] / 'processed'
     dir1.mkdir(exist_ok = True)
     files = os.listdir(filepath)
-    user_id = 'uniterct470'
+    user_id = 'uniterct446'
     
-    try:
-        os.remove(dir1 / ("Sample_"+user_id+".csv"))
-        os.remove(dir1 / ("density_"+user_id+".npy"))
-        os.remove(dir1 / ("bndrs_"+user_id+".csv"))
-    except:
-        pass
+#    try:
+#        os.remove(dir1 / ("Sample_"+user_id+".csv"))
+#        os.remove(dir1 / ("density_"+user_id+".npy"))
+#        os.remove(dir1 / ("bndrs_"+user_id+".csv"))
+#    except:
+#        pass
         
     files = [files[i] for i in range(len(files)) if (files[i][-4:]=='.csv' and (files[i][5:-24]==user_id))]
         
     q=0; p=0; r = 0; s=0
     start = datetime.now()
 
-    for f in files[:500]:
+    for f in files[50:100]:
         if q%1000==0:
             print(q)
 
