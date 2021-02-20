@@ -42,9 +42,11 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     #sleep:           Whether the user is asleep or not
     
     #do not notify between midnight and 7am:
-    rest_time = datetime.strptime(str(datapath)[-23:-4], '%Y-%m-%d-%H-%M-%S').hour < 7
+    #rest_time = datetime.strptime(str(datapath)[-23:-4], '%Y-%m-%d-%H-%M-%S').hour < 7
     #load data
     data = pd.read_csv(datapath, header=0, delimiter='\t', usecols = ['ppg', 'timestamp'])
+    
+    rest_time = datetime.fromtimestamp(data.timestamp.iloc[-1]/1000).hour < 7
     #exclude too short or too long:
     if data.shape[0]<5800:
         raise ValueError("Sample is too short")
@@ -115,7 +117,9 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
             t = True
     
     Sample.append(int(t))
-    Sample.append(str(datapath)[-40:])
+    #Sample.append(str(datapath)[-40:])
+    locs = str(datapath).find('data_uniterct')
+    Sample.append(str(datapath)[locs:])
     Sample.append(int(realtime))
     Sample.append(int(sleep))
     
