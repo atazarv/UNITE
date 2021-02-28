@@ -17,7 +17,7 @@ def PPG_features(data):
     wd, m = hp.process(filtered, sample_rate = sample_rate, clean_rr=True, calc_freq=False)
     
     return m
-#%%
+
 def Sample_Locator(Sample, bndrs):
     m = len(Sample)
     index = []
@@ -32,6 +32,16 @@ def Sample_Locator(Sample, bndrs):
     return index
 
 
+def wear_detect(data, x=1,y=1,z=9.65, stdev=0.35):
+    acc_std = np.linalg.norm(data[['accx','accy','accz']], axis=1)[:-2].std()
+    accx = data['accx'].values[:-1].mean()
+    accy = data['accy'].values[:-1].mean()
+    accz = data['accz'].values[:-1].mean()
+    
+    not_worn = (acc_std < stdev) & (np.abs(accz) > z) & (np.abs(accx) < x) & (np.abs(accy) <y)
+    
+    return not_worn
+
 #%%
 
 def main(datapath, filespath, user_id, realtime=True, sleep = False): 
@@ -44,8 +54,15 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
     #do not notify between midnight and 7am:
     #rest_time = datetime.strptime(str(datapath)[-23:-4], '%Y-%m-%d-%H-%M-%S').hour < 7
     #load data
-    data = pd.read_csv(datapath, header=0, delimiter='\t', usecols = ['ppg', 'timestamp'])
+    data = pd.read_csv(datapath, header=0, delimiter='\t')
     
+    
+    watch_not_worn = wear_detect(data)
+    if watch_not_worn:
+        #print("*************************Watch Not Worn", datapath)
+        raise ValueError("The watch is not worn")
+    
+    data = data[['ppg', 'timestamp']]
     rest_time = datetime.fromtimestamp(data.timestamp.iloc[-1]/1000).hour < 7
     #exclude too short or too long:
     if data.shape[0]<5800:
@@ -136,21 +153,21 @@ if __name__ == "__main__":
     dir1 = filepath.parents[0] / 'processed'
     dir1.mkdir(exist_ok = True)
     files = os.listdir(filepath)
-    user_id = 'uniterct446'
+    user_id = 'uniterct729'
     
-#    try:
-#        os.remove(dir1 / ("Sample_"+user_id+".csv"))
-#        os.remove(dir1 / ("density_"+user_id+".npy"))
-#        os.remove(dir1 / ("bndrs_"+user_id+".csv"))
-#    except:
-#        pass
+    try:
+        os.remove(dir1 / ("Sample_"+user_id+".csv"))
+        os.remove(dir1 / ("density_"+user_id+".npy"))
+        os.remove(dir1 / ("bndrs_"+user_id+".csv"))
+    except:
+        pass
         
-    files = [files[i] for i in range(len(files)) if (files[i][-4:]=='.csv' and (files[i][5:-24]==user_id))]
+    files = [files[i] for i in range(len(files)) if (files[i][-4:]=='.csv')]# and (files[i][5:-24]==user_id))]
         
     q=0; p=0; r = 0; s=0
     start = datetime.now()
 
-    for f in files[50:100]:
+    for f in files:
         if q%1000==0:
             print(q)
 
