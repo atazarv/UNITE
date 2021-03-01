@@ -127,7 +127,7 @@ def main(datapath, filespath, user_id, realtime=True, sleep = False):
         bndrs = np.genfromtxt(filespath / ('bndrs_'+user_id+'.csv'), delimiter=',')
         index= Sample_Locator(ppg_features, bndrs)
         d_cal = density[tuple(index)]/density.max()
-        d_cal= max(d_cal, 0.10)
+        d_cal= max(d_cal, 0.15)
         
         eps = np.random.random()
         if eps<d_cal:
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         if q%1000==0:
             print(q)
 
-        user_id = f[5:-24]
+        user_id = f[f.find('uniterct') : f.find('uniterct')+11]
         q+=1
         try:
             trig = main(datapath=filepath / f, filespath= dir1, user_id=user_id)
