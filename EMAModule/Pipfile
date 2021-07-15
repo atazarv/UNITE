@@ -1,0 +1,16 @@
+[[source]]
+verify_ssl = true
+name = "EMAModule"
+
+[packages]
+numpy = "*"
+panda = "*"
+heartpy = "*"
+
+[dev-packages]
+numpy = "*"
+panda = "*"
+heartpy = "*"
+
+[requires]
+python_version = "3.8.2"
