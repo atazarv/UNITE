@@ -5,6 +5,8 @@ env.hosts = ['unite.healthscitech.org']
 
 
 def deploy():
+    # creating the distribution
+    local('python3 setup.py sdist')
     # figure out the package name and version
     dist = local('python3 setup.py --fullname', capture=True).strip()
     filename = '%s.tar.gz' % dist
