@@ -10,8 +10,7 @@ class FeatureExtractionModule():
     def __init__(self, raw_data):
         self.data = raw_data
 
-    def PPG_features(self):
-        data = self.data
+    def PPG_features(self, data):
         raw = data.ppg.values
         timer = data.timestamp.values
         sample_rate = hp.get_samplerate_mstimer(timer)
@@ -21,10 +20,16 @@ class FeatureExtractionModule():
         return m
 
     def FeatureExtract(self):
-        self.data = self.data[['ppg', 'timestamp']]
-        ppg_features_dict = self.PPG_features()
+        ppg_features_dict = self.PPG_features(self.data[['ppg', 'timestamp']])
         ppg_features = list(ppg_features_dict.values())
         if (ppg_features.count(np.nan) or (ppg_features.count(0)>2) or ((np.sum(ppg_features)/(10e10))>1)):
+            print('Error extracting feature.')
+            print('NaN count', ppg_features.count(np.nan))
+            print('0 count', ppg_features.count(0))
+            print('Sum feature / 10e10', np.sum(ppg_features)/(10e10))
+            print('Feature list length', len(ppg_features))
+            print('Feature list', (ppg_features))
+
             raise ValueError("Returned error while extracting features")
 
         return list(ppg_features_dict.keys()), ppg_features
